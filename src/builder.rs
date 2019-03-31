@@ -1,8 +1,12 @@
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::thread::Builder as StdBuilder;
 
 use failure::ResultExt;
 
 use super::handles::ThreadGuard;
+use super::registry::current_thread_id;
+use super::status::RegisteredStatus;
 use super::ErrorKind;
 use super::Result;
 use super::Thread;
@@ -20,6 +24,7 @@ use super::ThreadScope;
 /// [`std::thread`]: https://doc.rust-lang.org/std/thread/index.html
 pub struct Builder {
     full_name: String,
+    name: String,
     std: StdBuilder,
 }
 
@@ -28,6 +33,7 @@ impl Builder {
         let name = name.into();
         let std = StdBuilder::new().name(name.clone());
         Builder {
+            name: name.clone(),
             full_name: name,
             std,
         }
@@ -55,16 +61,20 @@ impl Builder {
         F: Send + 'static,
         T: Send + 'static,
     {
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let scope_shutdown = Arc::clone(&shutdown);
+        let status = RegisteredStatus::new(self.name, self.full_name);
         let join = self
             .std
             .spawn(|| {
+                let id = current_thread_id();
                 // Keep a ThreadGuard alive as long as the thread is.
-                let _guard = ThreadGuard::new();
-                let scope = ThreadScope::new();
+                let _guard = ThreadGuard::new(id, status);
+                let scope = ThreadScope::new(scope_shutdown);
                 f(scope)
             })
             .with_context(|_| ErrorKind::Spawn)?;
-        Ok(Thread::new(join))
+        Ok(Thread::new(join, shutdown))
     }
 }
 
@@ -74,7 +84,7 @@ mod tests {
 
     #[test]
     fn spawn_and_join() {
-        Builder::new("test")
+        Builder::new("spawn_and_join")
             .spawn(|_| {})
             .expect("failed to spawn thread")
             .join()
