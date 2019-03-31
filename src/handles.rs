@@ -1,23 +1,41 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread::JoinHandle;
+use std::time::Duration;
+
+use crossbeam_channel::Receiver;
+use crossbeam_channel::RecvTimeoutError;
+use crossbeam_channel::Sender;
 
 use super::registry::deregister_thread;
 use super::registry::register_thread;
 use super::status::RegisteredStatus;
+use super::ErrorKind;
+use super::Result;
 
 /// Handle on a thread returned by [`Builder::spawn`].
 ///
 /// [`Builder::spawn`] ../builder/struct.Builder.html
 pub struct Thread<T: Send + 'static> {
-    join: JoinHandle<T>,
+    join: Option<JoinHandle<T>>,
+    join_check: Receiver<()>,
     shutdown: Arc<AtomicBool>,
 }
 
 impl<T: Send + 'static> Thread<T> {
-    pub(crate) fn new(join: JoinHandle<T>, shutdown: Arc<AtomicBool>) -> Thread<T> {
-        Thread { join, shutdown }
+    pub(crate) fn new(
+        join: JoinHandle<T>,
+        join_check: Receiver<()>,
+        shutdown: Arc<AtomicBool>,
+    ) -> Thread<T> {
+        let join = Some(join);
+        Thread {
+            join,
+            join_check,
+            shutdown,
+        }
     }
 
     /// Waits for the associated thread to finish.
@@ -27,8 +45,31 @@ impl<T: Send + 'static> Thread<T> {
     ///
     /// [`Err`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
     /// [`panic`]: https://doc.rust-lang.org/std/macro.panic.html
-    pub fn join(self) -> ::std::thread::Result<T> {
-        self.join.join()
+    pub fn join(&mut self) -> Result<T> {
+        let handle = self.join.take();
+        if handle.is_none() {
+            return Err(ErrorKind::JoinedAlready.into());
+        }
+        handle
+            .expect("the handle should be Some here")
+            .join()
+            .map_err(|error| ErrorKind::Join(Mutex::new(error)).into())
+    }
+
+    /// Similar to [`Thread::join`] but does not block forever.
+    pub fn join_timeout(&mut self, timeout: Duration) -> Result<T> {
+        if self.join.is_none() {
+            return Err(ErrorKind::JoinedAlready.into());
+        }
+        match self.join_check.recv_timeout(timeout) {
+            Err(RecvTimeoutError::Timeout) => Err(ErrorKind::JoinTimeout.into()),
+            _ => self
+                .join
+                .take()
+                .expect("the handle should be Some here")
+                .join()
+                .map_err(|error| ErrorKind::Join(Mutex::new(error)).into()),
+        }
     }
 
     /// Signal the thread is should terminate as soon as possible.
@@ -73,30 +114,35 @@ impl ThreadScope {
 /// [`ThreadScope`] struct.ThreadScope.html
 pub(crate) struct ThreadGuard {
     id: u64,
+    join_check: Sender<()>,
 }
 
 impl ThreadGuard {
-    pub(crate) fn new(id: u64, status: RegisteredStatus) -> ThreadGuard {
+    pub(crate) fn new(id: u64, join_check: Sender<()>, status: RegisteredStatus) -> ThreadGuard {
         register_thread(id, status);
-        ThreadGuard { id }
+        ThreadGuard { id, join_check }
     }
 }
 
 impl Drop for ThreadGuard {
     fn drop(&mut self) {
+        // Try to signal the parent thread we shut down but ignore errors.
+        let _ = self.join_check.try_send(());
         deregister_thread(self.id);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::super::Builder;
 
     #[test]
     fn request_shutdown() {
-        let thread = Builder::new("request_shutdown")
+        let mut thread = Builder::new("request_shutdown")
             .spawn(|scope| loop {
-                ::std::thread::sleep(::std::time::Duration::from_millis(50));
+                ::std::thread::sleep(Duration::from_millis(10));
                 if scope.should_shutdown() {
                     break;
                 }
@@ -104,5 +150,21 @@ mod tests {
             .expect("to spawn test thread");
         thread.request_shutdown();
         thread.join().expect("the thread to stop");
+    }
+
+    #[test]
+    fn join_timeout() {
+        let mut thread = Builder::new("request_shutdown")
+            .spawn(|scope| loop {
+                ::std::thread::sleep(Duration::from_millis(10));
+                if scope.should_shutdown() {
+                    break;
+                }
+            })
+            .expect("to spawn test thread");
+        thread.request_shutdown();
+        thread
+            .join_timeout(Duration::from_millis(15))
+            .expect("the thread to stop");
     }
 }

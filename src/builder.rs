@@ -61,6 +61,7 @@ impl Builder {
         F: Send + 'static,
         T: Send + 'static,
     {
+        let (join_check_send, join_check_receive) = ::crossbeam_channel::bounded(1);
         let shutdown = Arc::new(AtomicBool::new(false));
         let scope_shutdown = Arc::clone(&shutdown);
         let status = RegisteredStatus::new(self.name, self.full_name);
@@ -69,12 +70,12 @@ impl Builder {
             .spawn(|| {
                 let id = current_thread_id();
                 // Keep a ThreadGuard alive as long as the thread is.
-                let _guard = ThreadGuard::new(id, status);
+                let _guard = ThreadGuard::new(id, join_check_send, status);
                 let scope = ThreadScope::new(scope_shutdown);
                 f(scope)
             })
             .with_context(|_| ErrorKind::Spawn)?;
-        Ok(Thread::new(join, shutdown))
+        Ok(Thread::new(join, join_check_receive, shutdown))
     }
 }
 

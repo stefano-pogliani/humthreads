@@ -1,3 +1,4 @@
+extern crate crossbeam_channel;
 extern crate failure;
 extern crate lazy_static;
 extern crate serde;

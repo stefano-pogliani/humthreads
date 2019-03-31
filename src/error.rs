@@ -1,4 +1,6 @@
+use std::any::Any;
 use std::fmt;
+use std::sync::Mutex;
 
 use failure::Backtrace;
 use failure::Context;
@@ -45,6 +47,15 @@ impl From<ErrorKind> for Error {
 /// Exhaustive list of possible errors emitted by this crate.
 #[derive(Debug, Fail)]
 pub enum ErrorKind {
+    #[fail(display = "unable to join thread")]
+    Join(Mutex<Box<dyn Any + Send + 'static>>),
+
+    #[fail(display = "thread did not stop within the allotted time")]
+    JoinTimeout,
+
+    #[fail(display = "thread already joined")]
+    JoinedAlready,
+
     #[fail(display = "unable to spawn new thread")]
     Spawn,
 }

@@ -6,5 +6,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 ### Added
-- Threads spawning and joining.
+- Join with timeout.
 - Threads introspection.
+- Threads spawning and joining.
