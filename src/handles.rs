@@ -36,7 +36,7 @@ impl Drop for ThreadScopeActivityGuard {
 
 /// Handle on a thread returned by [`Builder::spawn`].
 ///
-/// [`Builder::spawn`] ../builder/struct.Builder.html
+/// [`Builder::spawn`]: struct.Builder.html
 pub struct Thread<T: Send + 'static> {
     join: Option<JoinHandle<T>>,
     join_check: Receiver<()>,
@@ -76,6 +76,8 @@ impl<T: Send + 'static> Thread<T> {
     }
 
     /// Similar to [`Thread::join`] but does not block forever.
+    ///
+    /// [`Thread::join`]: struct.Thread.html#method.join
     pub fn join_timeout(&mut self, timeout: Duration) -> Result<T> {
         if self.join.is_none() {
             return Err(ErrorKind::JoinedAlready.into());
@@ -102,8 +104,10 @@ impl<T: Send + 'static> Thread<T> {
 
 /// Additional metadata and state for a specific thread.
 ///
-/// You can think of a `ThreadScope` as a handle a thread has on itself.
+/// You can think of a [`ThreadScope`] as a handle a thread has on itself.
 /// Each `ThreadScope` is an interface to advanced theard API below.
+///
+/// [`ThreadScope`]: struct.ThreadScope.html
 pub struct ThreadScope {
     activity: Arc<Mutex<Option<String>>>,
     shutdown: Arc<AtomicBool>,
@@ -142,7 +146,9 @@ impl ThreadScope {
 
     /// Report the given activity for the duration of a scope.
     ///
-    /// The scope is considered over once the returned `ThreadScopeActivityGuard` is dropped.
+    /// The scope is considered over once the returned [`ThreadScopeActivityGuard`] is dropped.
+    ///
+    /// [`ThreadScopeActivityGuard`]: struct.ThreadScopeActivityGuard.html
     pub fn scoped_activity<S: Into<String>>(&self, activity: S) -> ThreadScopeActivityGuard {
         let activity = activity.into();
         let mut guard = self
@@ -171,9 +177,9 @@ impl ThreadScope {
 /// By doing so, [`ThreadScope`]s can be dropped if not needed without the introspection
 /// features loosing track of a thread.
 ///
-/// [`dropped`] https://doc.rust-lang.org/std/ops/trait.Drop.html
-/// [`unwinding`] https://doc.rust-lang.org/nomicon/unwinding.html
-/// [`ThreadScope`] struct.ThreadScope.html
+/// [`dropped`]: https://doc.rust-lang.org/std/ops/trait.Drop.html
+/// [`unwinding`]: https://doc.rust-lang.org/nomicon/unwinding.html
+/// [`ThreadScope`]: struct.ThreadScope.html
 pub(crate) struct ThreadGuard {
     id: u64,
     join_check: Sender<()>,

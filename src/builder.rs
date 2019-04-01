@@ -44,6 +44,7 @@ impl Builder {
     /// This is stored as a rust [`String`] and it is not passed to the OS
     /// so it is NOT subject to the same limit that [std threads] have on names.
     ///
+    /// [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
     /// [std threads]: https://doc.rust-lang.org/std/thread/index.html#naming-threads
     pub fn full_name<S: Into<String>>(mut self, name: S) -> Builder {
         self.full_name = name.into();
@@ -54,7 +55,7 @@ impl Builder {
     ///
     /// On success a [`Thread`] handle is returned.
     ///
-    /// [`Thread`] ../handles/struct.Thread.html
+    /// [`Thread`]: ../struct.Thread.html
     pub fn spawn<F, T>(self, f: F) -> Result<Thread<T>>
     where
         F: FnOnce(ThreadScope) -> T,
