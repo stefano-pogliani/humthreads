@@ -5,5 +5,7 @@
 - [ ] Ensure tests and CI checks pass.
 - [ ] Update changelog with version and date.
 - [ ] Git commit the release.
+- [ ] Cargo package to verify release.
+- [ ] Git tag and push the release.
 - [ ] Create a corresponding GitHub release.
 - [ ] Publish version to rust registry.
