@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.1] - 2019-04-09
+### Changed
+- Fix `name`/`short_name` swap in thread status.
+
 ## 0.1.0 - 2019-04-01
 ### Added
 - Join with timeout.
@@ -14,4 +18,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Threads spawning and joining.
 
 
-[Unreleased]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.0...v0.1.1

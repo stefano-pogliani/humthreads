@@ -55,7 +55,8 @@ mod tests {
     #[test]
     fn thread_registration_lifecycle() {
         // Create a thread.
-        let mut thread = Builder::new("register_thread")
+        let mut thread = Builder::new("thread_registration_lifecycle")
+            .full_name("thread registration lifecycle long")
             .spawn(|scope| loop {
                 ::std::thread::sleep(::std::time::Duration::from_millis(50));
                 if scope.should_shutdown() {
@@ -76,11 +77,12 @@ mod tests {
         // Assert test results.
         let thread = running_threads
             .into_iter()
-            .find(|t| t.name == "register_thread");
+            .find(|t| t.short_name == "thread_registration_lifecycle");
         assert_eq!(true, thread.is_some());
+        assert_eq!("thread registration lifecycle long", thread.unwrap().name);
         let thread = stopped_threads
             .into_iter()
-            .find(|t| t.name == "register_thread");
+            .find(|t| t.short_name == "thread_registration_lifecycle");
         assert_eq!(false, thread.is_some());
     }
 }

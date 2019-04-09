@@ -71,7 +71,7 @@ impl Builder {
             .std
             .spawn(|| {
                 let id = current_thread_id();
-                let status = RegisteredStatus::new(name, full_name);
+                let status = RegisteredStatus::new(full_name, name);
                 let activity = status.activity();
                 // Keep a ThreadGuard alive as long as the thread is.
                 let _guard = ThreadGuard::new(id, join_check_send, status);

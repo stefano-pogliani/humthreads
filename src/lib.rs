@@ -112,7 +112,7 @@
 //! [`Builder`]: struct.Builder.html
 //! [`std::thread`]: https://doc.rust-lang.org/stable/std/thread/index.html
 //! [`std::thread::Builder`]: https://doc.rust-lang.org/stable/std/thread/struct.Builder.html
-#![doc(html_root_url = "https://docs.rs/humthreads/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/humthreads/0.1.1")]
 
 extern crate crossbeam_channel;
 extern crate failure;
