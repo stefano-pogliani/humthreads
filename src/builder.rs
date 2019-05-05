@@ -55,7 +55,7 @@ impl Builder {
     ///
     /// On success a [`Thread`] handle is returned.
     ///
-    /// [`Thread`]: ../struct.Thread.html
+    /// [`Thread`]: struct.Thread.html
     pub fn spawn<F, T>(self, f: F) -> Result<Thread<T>>
     where
         F: FnOnce(ThreadScope) -> T,

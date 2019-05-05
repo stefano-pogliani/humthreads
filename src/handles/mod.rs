@@ -15,6 +15,10 @@ use super::status::RegisteredStatus;
 use super::ErrorKind;
 use super::Result;
 
+mod map;
+
+pub use self::map::MapThread;
+
 /// An RAII implementation of a "scoped activity" of a thread.
 ///
 /// When this structure is dropped (falls out of scope), the thread reported activity
@@ -91,6 +95,30 @@ impl<T: Send + 'static> Thread<T> {
                 .join()
                 .map_err(|error| ErrorKind::Join(Mutex::new(error)).into()),
         }
+    }
+
+    /// Apply a transformation function when joining to the thread.
+    // NOTE: the callback cannot be an `FnOnce` because it is applied
+    // only when the thread is joined and `FnOnce` can't be `Box`ed.
+    pub fn map<U, F>(self, mut f: F) -> MapThread<U>
+    where
+        U: Send + 'static,
+        F: FnMut(T) -> U + 'static,
+    {
+        let mut join = self.join;
+        let join = move || {
+            let join = match join.take() {
+                Some(join) => join,
+                None => return Err(ErrorKind::JoinedAlready.into()),
+            };
+            // Result::map needs an `FnOnce` so we use an explicit clousure wrapping an `FnMut`.
+            // Clippy is not too happy about it though.
+            #[allow(clippy::redundant_closure)]
+            join.join()
+                .map_err(|error| ErrorKind::Join(Mutex::new(error)).into())
+                .map(|r| f(r))
+        };
+        MapThread::new(join, self.join_check, self.shutdown)
     }
 
     /// Signal the thread is should terminate as soon as possible.

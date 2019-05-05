@@ -1,6 +1,6 @@
 [package]
 name = "humthreads"
-version = "0.1.1" # remember to update html_root_url
+version = "0.1.2" # remember to update html_root_url
 authors = ["Stefano Pogliani <stefano@spogliani.net>"]
 edition = "2018"
 
