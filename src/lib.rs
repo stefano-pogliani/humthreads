@@ -11,7 +11,7 @@
 //! use humthreads::Builder;
 //!
 //!# fn main() {
-//! let mut thread = Builder::new("os-thread-name")
+//! let thread = Builder::new("os-thread-name")
 //!     .spawn(|scope| {
 //!         // This code is run in a separate thread.
 //!         // The `scope` attribute can be used to interact with advanced APIs.
@@ -40,14 +40,14 @@
 //! use humthreads::Builder;
 //!
 //!# fn main() {
-//! let mut thread1 = Builder::new("thread1")
+//! let thread1 = Builder::new("thread1")
 //!     .spawn(|scope| {
 //!         while !scope.should_shutdown() {
 //!             sleep(Duration::from_millis(10));
 //!         }
 //!     })
 //!     .expect("failed to spawn thread1");
-//! let mut thread2 = Builder::new("thread2")
+//! let thread2 = Builder::new("thread2")
 //!     .spawn(|scope| {
 //!         while !scope.should_shutdown() {
 //!             sleep(Duration::from_millis(10));
@@ -91,7 +91,7 @@
 //! use humthreads::Builder;
 //!
 //!# fn main() {
-//! let mut thread = Builder::new("os-thread-name")
+//! let thread = Builder::new("os-thread-name")
 //!     .spawn(|scope| {
 //!         // Set the current activity, overriding the current message.
 //!         scope.activity("waiting for work");
@@ -109,10 +109,47 @@
 //!# }
 //! ```
 //!
+//! ### Waiting for threads with Select
+//! ```
+//! use std::thread::sleep;
+//! use std::time::Duration;
+//!
+//! use crossbeam_channel::Select;
+//!
+//! use humthreads::Builder;
+//!
+//!# fn main() {
+//! let thread1 = Builder::new("thread1")
+//!     .spawn(|_| {
+//!         sleep(Duration::from_millis(50));
+//!     })
+//!     .expect("failed to spawn thread1");
+//! let thread2 = Builder::new("thread2")
+//!     .spawn(|_| {
+//!         sleep(Duration::from_millis(10));
+//!     })
+//!     .expect("failed to spawn thread2");
+//!
+//! // Wait for a thread to exit with the Select API.
+//! let mut set = Select::new();
+//! let idx1 = thread1.select_add(&mut set);
+//! let idx2 = thread2.select_add(&mut set);
+//! let op = set.select_timeout(Duration::from_millis(20)).expect("selection to find thread2");
+//! assert_eq!(idx2, op.index());
+//! thread2.select_join(op).expect("thread2 to have exited successfully");
+//!# }
+//! ```
+//!
+//! You can also use the [`Select::ready`] API and then use [`Thread::join`] or
+//! [`Thread::join_timeout`] to join with the thread.
+//!
 //! [`Builder`]: struct.Builder.html
+//! [`Thread::join`]: struct.Thread.html#method.join
+//! [`Thread::join_timeout`]: struct.Thread.html#method.join_timeout
 //! [`std::thread`]: https://doc.rust-lang.org/stable/std/thread/index.html
 //! [`std::thread::Builder`]: https://doc.rust-lang.org/stable/std/thread/struct.Builder.html
-#![doc(html_root_url = "https://docs.rs/humthreads/0.1.1")]
+//! [`Select::ready`]: https://docs.rs/crossbeam-channel/0.3.8/crossbeam_channel/struct.Select.html
+#![doc(html_root_url = "https://docs.rs/humthreads/0.1.3")]
 
 extern crate crossbeam_channel;
 extern crate failure;

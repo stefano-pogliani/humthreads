@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -7,6 +8,8 @@ use std::time::Duration;
 
 use crossbeam_channel::Receiver;
 use crossbeam_channel::RecvTimeoutError;
+use crossbeam_channel::Select;
+use crossbeam_channel::SelectedOperation;
 use crossbeam_channel::Sender;
 
 use super::registry::deregister_thread;
@@ -42,7 +45,10 @@ impl Drop for ThreadScopeActivityGuard {
 ///
 /// [`Builder::spawn`]: struct.Builder.html
 pub struct Thread<T: Send + 'static> {
-    join: Option<JoinHandle<T>>,
+    // Interior mutability is used to consume the join handle from the join method(s).
+    // It is save because the handle is borrowed only within join methods and the
+    // Thread type is not Sync (therefore two methods can't be called at once).
+    join: RefCell<Option<JoinHandle<T>>>,
     join_check: Receiver<()>,
     shutdown: Arc<AtomicBool>,
 }
@@ -53,7 +59,7 @@ impl<T: Send + 'static> Thread<T> {
         join_check: Receiver<()>,
         shutdown: Arc<AtomicBool>,
     ) -> Thread<T> {
-        let join = Some(join);
+        let join = RefCell::new(Some(join));
         Thread {
             join,
             join_check,
@@ -68,8 +74,16 @@ impl<T: Send + 'static> Thread<T> {
     ///
     /// [`Err`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
     /// [`panic`]: https://doc.rust-lang.org/std/macro.panic.html
-    pub fn join(&mut self) -> Result<T> {
-        let handle = self.join.take();
+    pub fn join(&self) -> Result<T> {
+        // It should always be possible to borrow the handle but in case users manage
+        // to create uses that lead to multiple concurrent invocations of this method
+        // return an error instead of panicing.
+        // One of the calls will be able to proceed and actually join the thread.
+        let handle = self
+            .join
+            .try_borrow_mut()
+            .map_err(|_| ErrorKind::JoinedAlready)?
+            .take();
         if handle.is_none() {
             return Err(ErrorKind::JoinedAlready.into());
         }
@@ -82,18 +96,10 @@ impl<T: Send + 'static> Thread<T> {
     /// Similar to [`Thread::join`] but does not block forever.
     ///
     /// [`Thread::join`]: struct.Thread.html#method.join
-    pub fn join_timeout(&mut self, timeout: Duration) -> Result<T> {
-        if self.join.is_none() {
-            return Err(ErrorKind::JoinedAlready.into());
-        }
+    pub fn join_timeout(&self, timeout: Duration) -> Result<T> {
         match self.join_check.recv_timeout(timeout) {
             Err(RecvTimeoutError::Timeout) => Err(ErrorKind::JoinTimeout.into()),
-            _ => self
-                .join
-                .take()
-                .expect("the handle should be Some here")
-                .join()
-                .map_err(|error| ErrorKind::Join(Mutex::new(error)).into()),
+            _ => self.join(),
         }
     }
 
@@ -105,7 +111,7 @@ impl<T: Send + 'static> Thread<T> {
         U: Send + 'static,
         F: FnMut(T) -> U + 'static,
     {
-        let mut join = self.join;
+        let mut join = self.join.into_inner();
         let join = move || {
             let join = match join.take() {
                 Some(join) => join,
@@ -127,6 +133,24 @@ impl<T: Send + 'static> Thread<T> {
     /// periodiaclly check if it needs to terminate or not.
     pub fn request_shutdown(&self) {
         self.shutdown.store(true, Ordering::Relaxed);
+    }
+
+    /// Add the thread to a [`Select`] set.
+    ///
+    /// [`Select`]: crossbeam_channel/struct.Select.html
+    pub fn select_add<'a>(&'a self, select: &mut Select<'a>) -> usize {
+        select.recv(&self.join_check)
+    }
+
+    /// Completes a join operation that was started by the [`Select`] interface.
+    ///
+    /// This method should be used if one of the `select` operations are used.
+    /// If the `ready` familiy of methods is used, use one of the other join methods.
+    pub fn select_join(&self, operation: SelectedOperation) -> Result<T> {
+        // Complete the receive operation to avoid panics.
+        // Regardless of the operation result, this indicates the thread exit.
+        let _ = operation.recv(&self.join_check);
+        self.join()
     }
 }
 
@@ -232,13 +256,15 @@ impl Drop for ThreadGuard {
 mod tests {
     use std::time::Duration;
 
+    use crossbeam_channel::Select;
+
     use super::super::registered_threads;
     use super::super::Builder;
 
     #[test]
     fn activity() {
         // Create a thread that reports activity.
-        let mut thread = Builder::new("activity")
+        let thread = Builder::new("activity")
             .spawn(|scope| {
                 scope.activity("testing activity API");
                 loop {
@@ -269,7 +295,7 @@ mod tests {
     #[test]
     fn idle() {
         // Create a thread that reports activity.
-        let mut thread = Builder::new("idle")
+        let thread = Builder::new("idle")
             .spawn(|scope| {
                 scope.activity("testing activity API");
                 scope.idle();
@@ -300,7 +326,7 @@ mod tests {
 
     #[test]
     fn join_timeout() {
-        let mut thread = Builder::new("request_shutdown")
+        let thread = Builder::new("request_shutdown")
             .spawn(|scope| loop {
                 ::std::thread::sleep(Duration::from_millis(10));
                 if scope.should_shutdown() {
@@ -316,7 +342,7 @@ mod tests {
 
     #[test]
     fn request_shutdown() {
-        let mut thread = Builder::new("request_shutdown")
+        let thread = Builder::new("request_shutdown")
             .spawn(|scope| loop {
                 ::std::thread::sleep(Duration::from_millis(10));
                 if scope.should_shutdown() {
@@ -332,7 +358,7 @@ mod tests {
     fn scoped_activity() {
         let (notifier, notifiction) = ::crossbeam_channel::bounded(0);
         // A background thread manipulates scoped activity ...
-        let mut thread = Builder::new("scoped_activity")
+        let thread = Builder::new("scoped_activity")
             .spawn(move |scope| {
                 notifiction
                     .recv_timeout(Duration::from_millis(50))
@@ -434,5 +460,83 @@ mod tests {
             .find(|t| t.name == "scoped_activity")
             .expect("test thread not found");
         assert_eq!(None, status.activity);
+    }
+
+    #[test]
+    fn select_interface() {
+        // Create a thread.
+        let thread = Builder::new("select_interface")
+            .spawn(|_| {
+                ::std::thread::sleep(Duration::from_millis(10));
+            })
+            .expect("to spawn test thread");
+
+        // Select-join the thread.
+        let mut set = Select::new();
+        let idx = thread.select_add(&mut set);
+        let op = set.select_timeout(Duration::from_millis(30)).unwrap();
+        thread.select_join(op).unwrap();
+        assert_eq!(0, idx);
+    }
+
+    #[test]
+    fn select_multiple_threads() {
+        // Create a thread.
+        let thread1 = Builder::new("select_multiple_threads_1")
+            .spawn(|_| {
+                ::std::thread::sleep(Duration::from_millis(50));
+            })
+            .expect("to spawn test thread");
+        let thread2 = Builder::new("select_multiple_threads_2")
+            .spawn(|_| {
+                ::std::thread::sleep(Duration::from_millis(10));
+            })
+            .expect("to spawn test thread");
+
+        // Select-join the thread.
+        let mut set = Select::new();
+        thread1.select_add(&mut set);
+        thread2.select_add(&mut set);
+        let op = set.select_timeout(Duration::from_millis(30)).unwrap();
+        let idx = op.index();
+        thread2.select_join(op).unwrap();
+        assert_eq!(1, idx);
+    }
+
+    #[test]
+    fn select_panic() {
+        // Create a thread.
+        let thread = Builder::new("select_panic")
+            .spawn(|_| {
+                ::std::thread::sleep(Duration::from_millis(10));
+                panic!("this panic is expected");
+            })
+            .expect("to spawn test thread");
+
+        // Select-join the thread.
+        let mut set = Select::new();
+        thread.select_add(&mut set);
+        let op = set.select_timeout(Duration::from_millis(30)).unwrap();
+        let idx = op.index();
+        let result = thread.select_join(op);
+        assert_eq!(0, idx);
+        assert_eq!(true, result.is_err());
+    }
+
+    #[test]
+    fn select_ready_interface() {
+        // Create a thread.
+        let thread = Builder::new("select_panic")
+            .spawn(|_| {
+                ::std::thread::sleep(Duration::from_millis(10));
+            })
+            .expect("to spawn test thread");
+
+        // Select-join the thread.
+        let mut set = Select::new();
+        thread.select_add(&mut set);
+        let idx = set.ready_timeout(Duration::from_millis(30)).unwrap();
+        assert_eq!(0, idx);
+        thread.join_timeout(Duration::from_millis(10)).unwrap();
     }
 }

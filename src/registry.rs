@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn thread_registration_lifecycle() {
         // Create a thread.
-        let mut thread = Builder::new("thread_registration_lifecycle")
+        let thread = Builder::new("thread_registration_lifecycle")
             .full_name("thread registration lifecycle long")
             .spawn(|scope| loop {
                 ::std::thread::sleep(::std::time::Duration::from_millis(50));

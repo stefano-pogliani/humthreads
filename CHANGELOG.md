@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.1.3] - 2019-05-07
+### Added
+- Wait for thread exit events using crossbeam-channel `Select` interface.
+
+### Changed
+- Convert handle's join methods to immutable references to the handle itself.
+
 ## [0.1.2] - 2019-05-05
 ### Added
 - Mappable thread handles to transform `join` results.
@@ -22,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Threads spawning and joining.
 
 
-[Unreleased]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/stefano-pogliani/humthreads/compare/v0.1.0...v0.1.1
