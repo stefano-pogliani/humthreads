@@ -149,7 +149,7 @@
 //! [`std::thread`]: https://doc.rust-lang.org/stable/std/thread/index.html
 //! [`std::thread::Builder`]: https://doc.rust-lang.org/stable/std/thread/struct.Builder.html
 //! [`Select::ready`]: https://docs.rs/crossbeam-channel/0.3.8/crossbeam_channel/struct.Select.html
-#![doc(html_root_url = "https://docs.rs/humthreads/0.1.3")]
+#![doc(html_root_url = "https://docs.rs/humthreads/0.1.4")]
 
 extern crate crossbeam_channel;
 extern crate failure;
@@ -163,6 +163,8 @@ mod error;
 mod handles;
 mod registry;
 mod status;
+#[cfg(feature = "with_test_support")]
+pub mod test_support;
 
 pub use self::builder::Builder;
 pub use self::error::Error;

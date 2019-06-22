@@ -12,11 +12,11 @@ use crossbeam_channel::Select;
 use crossbeam_channel::SelectedOperation;
 use crossbeam_channel::Sender;
 
-use super::registry::deregister_thread;
-use super::registry::register_thread;
-use super::status::RegisteredStatus;
-use super::ErrorKind;
-use super::Result;
+use crate::registry::deregister_thread;
+use crate::registry::register_thread;
+use crate::status::RegisteredStatus;
+use crate::ErrorKind;
+use crate::Result;
 
 mod map;
 
