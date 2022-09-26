@@ -1,7 +1,10 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-/// Internal status traking for registered threads.
+use serde::Deserialize;
+use serde::Serialize;
+
+/// Internal status tracking for registered threads.
 pub(crate) struct RegisteredStatus {
     activity: Arc<Mutex<Option<String>>>,
     name: String,
@@ -29,7 +32,7 @@ impl RegisteredStatus {
 pub struct ThreadStatus {
     /// Description of the activity currently in progress by the thread.
     ///
-    /// NOTE: threads are responsable for reporting their own activity.
+    /// NOTE: threads are responsible for reporting their own activity.
     pub activity: Option<String>,
 
     /// Full name of the thread.

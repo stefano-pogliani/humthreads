@@ -1,4 +1,7 @@
-# Threads for Humans
+# Threads for Humans (DEPRECATED)
+
+**NOTE**: this library is now deprecated and won't be updated much (not like it was until now ...).
+
 A rust library built on top of [`std::thread`](https://doc.rust-lang.org/stable/std/thread/)
 to provide additional features and tools to make development easier and to support operators.
 
@@ -8,12 +11,12 @@ But larger and more complex projects need a bit more.
 
 The `humthreads` library provides the following additional features:
 
-  * Signal threads they should shutdown.
-  * Join threads with timeouts instead of blocking forever if a thread is not done.
-  * Introspection API to aid debugging and monitoring multi-threaded processes.
-
+* Signal threads they should shutdown.
+* Join threads with timeouts instead of blocking forever if a thread is not done.
+* Introspection API to aid debugging and monitoring multi-threaded processes.
 
 ## Code of Conduct
+
 Our aim is to build a thriving, healthy and diverse community.  
 To help us get there we decided to adopt the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/)
 for all our projects.
